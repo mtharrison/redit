@@ -1,0 +1,20 @@
+{
+  "name": "redit",
+  "version": "1.0.0",
+  "description": "Quickly edit rethink documents in your $EDITOR",
+  "main": "index.js",
+  "keywords": [
+    "rethinkdb"
+  ],
+  "author": "Matt Harrison<hi@matt-harrison.com>",
+  "license": "BSD-3-Clause",
+  "bin": {
+    "redit": "index.js"
+  },
+  "dependencies": {
+    "chokidar": "^3.0.1",
+    "editor": "^1.0.0",
+    "penseur": "^8.12.3",
+    "tmp": "^0.1.0"
+  }
+}
