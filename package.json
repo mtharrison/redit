@@ -12,6 +12,7 @@
     "redit": "index.js"
   },
   "dependencies": {
+    "chalk": "^2.4.2",
     "chokidar": "^3.0.1",
     "editor": "^1.0.0",
     "penseur": "^8.12.3",

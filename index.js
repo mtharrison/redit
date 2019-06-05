@@ -1,5 +1,6 @@
 #! /usr/bin/env node
 
+const Chalk = require('chalk');
 const Chokidar = require('chokidar');
 const ChildProcess = require('child_process');
 const Fs = require('fs');
@@ -10,24 +11,40 @@ Tmp.setGracefulCleanup();
 
 const [dbName, tbl, id] = process.argv.slice(2);
 
+let db;
+let proc;
+
 const spawn = (bin, args) => {
 
     return new Promise((resolve) => {
 
-        const proc = ChildProcess.spawn(bin, args, { stdio: 'inherit' });
+        proc = ChildProcess.spawn(bin, args, { stdio: 'inherit' });
+
         proc.on('exit', (code) => resolve(code));
+        proc.on('error', (err) => reject(err));
     });
 };
 
 const start = async () => {
 
-    const db = new Penseur.Db(dbName, { host: 'localhost', port: 28015 });
+    if (!dbName || !tbl || !id) {
+        throw new Error('Usage: redit [db] [tbl] ([id])');
+    }
+
+    const EDITOR = process.env.EDITOR;
+
+    if (!EDITOR) {
+        throw new Error('Looks like $EDITOR is missing. Try \'export EDITOR=vim\'');
+    }
+
+    db = new Penseur.Db(dbName, { host: 'localhost', port: 28015 });
     db.table(tbl);
     await db.connect();
 
     const obj = await db[tbl].get(id);
+
     if (!obj) {
-        console.log('Record not found');
+        throw new Error(`Record ${tbl}:${id} not found in database ${dbName}`);
     }
     else {
         const tmp = Tmp.fileSync();
@@ -37,21 +54,38 @@ const start = async () => {
 
         watcher.on('change', async () => {
 
-            console.log('Got a change');
-
-            const contents = Fs.readFileSync(tmp.name);
-            const parsed = JSON.parse(contents.toString());
-            await db[tbl].insert(parsed, { merge: 'replace' });
-
-            console.log('Wrote update to database');
+            try {
+                const contents = Fs.readFileSync(tmp.name);
+                const parsed = JSON.parse(contents.toString());
+                await db[tbl].insert(parsed, { merge: 'replace' });
+            } catch (err) {
+                exit(1, err);
+            }
         });
 
         const args = process.env.EDITOR.split(' ');
-        const code = await spawn(args[0], [...args.slice(1), tmp.name]);
-        console.log(`Exited with code ${code}`);
+        await spawn(args[0], [...args.slice(1), tmp.name]);
     }
 
     await db.close();
 };
 
-start();
+const exit = async (code, err) => {
+
+    try {
+        db && await db.close();
+        proc && proc.kill('SIGKILL');
+    } catch (err) {
+        // ignore errors in cleanup
+    }
+
+    if (err) {
+        console.error(Chalk.red(err));
+    }
+
+    process.exit(code);
+};
+
+start()
+    .catch(err => exit(1, err))
+    .then(() => console.log(Chalk.green('Success!')));
