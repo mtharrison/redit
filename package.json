@@ -1,6 +1,6 @@
 {
   "name": "@mtharrison/redit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Quickly edit rethink documents in your $EDITOR",
   "main": "index.js",
   "keywords": [
