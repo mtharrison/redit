@@ -27,7 +27,7 @@ const spawn = (bin, args) => {
 
 const start = async () => {
 
-    if (!dbName || !tbl || !id) {
+    if (!dbName || !tbl) {
         throw new Error('Usage: redit [db] [tbl] ([id])');
     }
 
@@ -41,31 +41,48 @@ const start = async () => {
     db.table(tbl);
     await db.connect();
 
-    const obj = await db[tbl].get(id);
+    let files = [];
+    let openAt;
 
-    if (!obj) {
-        throw new Error(`Record ${tbl}:${id} not found in database ${dbName}`);
+    if (id) {
+        const obj = await db[tbl].get(id);
+
+        if (!obj) {
+            throw new Error(`Record ${tbl}:${id} not found in database ${dbName}`);
+        }
+        else {
+            const tmp = Tmp.fileSync({ postfix: '.json' });
+            files.push(tmp.name);
+            openAt = tmp.name;
+            Fs.writeFileSync(tmp.name, JSON.stringify(obj, null, 2));
+        }
+    } else {
+        const all = await db[tbl].all();
+        const tmp = Tmp.dirSync();
+        openAt = tmp.name;
+
+        for (const record of all) {
+            const fn = `${tmp.name}/${record.id}.json`;
+            files.push(fn);
+            Fs.writeFileSync(fn, JSON.stringify(record, null, 2));
+        }
     }
-    else {
-        const tmp = Tmp.fileSync();
-        Fs.writeFileSync(tmp.name, JSON.stringify(obj, null, 2));
 
-        const watcher = Chokidar.watch(tmp.name, { persistent: false, usePolling: true });
+    const watcher = Chokidar.watch(files, { persistent: false, usePolling: true });
 
-        watcher.on('change', async () => {
+    watcher.on('change', async (file) => {
 
-            try {
-                const contents = Fs.readFileSync(tmp.name);
-                const parsed = JSON.parse(contents.toString());
-                await db[tbl].insert(parsed, { merge: 'replace' });
-            } catch (err) {
-                exit(1, err);
-            }
-        });
+        try {
+            const contents = Fs.readFileSync(file);
+            const parsed = JSON.parse(contents.toString());
+            await db[tbl].insert(parsed, { merge: 'replace' });
+        } catch (err) {
+            exit(1, err);
+        }
+    });
 
-        const args = process.env.EDITOR.split(' ');
-        await spawn(args[0], [...args.slice(1), tmp.name]);
-    }
+    const args = process.env.EDITOR.split(' ');
+    await spawn(args[0], [...args.slice(1), openAt]);
 
     await db.close();
 };
