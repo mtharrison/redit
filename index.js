@@ -6,6 +6,8 @@ const ChildProcess = require('child_process');
 const Fs = require('fs');
 const Penseur = require('penseur');
 const Tmp = require('tmp');
+const Rimraf = require('rimraf');
+const Path = require('path');
 
 Tmp.setGracefulCleanup();
 
@@ -13,6 +15,7 @@ const [dbName, tbl, id] = process.argv.slice(2);
 
 let db;
 let proc;
+let openAt;
 
 const spawn = (bin, args) => {
 
@@ -24,6 +27,8 @@ const spawn = (bin, args) => {
         proc.on('error', (err) => reject(err));
     });
 };
+
+const cleanup = () => Rimraf.sync(openAt);
 
 const start = async () => {
 
@@ -42,7 +47,6 @@ const start = async () => {
     await db.connect();
 
     let files = [];
-    let openAt;
 
     if (id) {
         const obj = await db[tbl].get(id);
@@ -76,6 +80,7 @@ const start = async () => {
             const contents = Fs.readFileSync(file);
             const parsed = JSON.parse(contents.toString());
             await db[tbl].insert(parsed, { merge: 'replace' });
+            console.info(Chalk.yellow(`Updated record with id "${id || Path.parse(file).name}" in table "${tbl}", database "${dbName}".`));
         } catch (err) {
             exit(1, err);
         }
@@ -84,12 +89,14 @@ const start = async () => {
     const args = process.env.EDITOR.split(' ');
     await spawn(args[0], [...args.slice(1), openAt]);
 
+    cleanup();
     await db.close();
 };
 
 const exit = async (code, err) => {
 
     try {
+        cleanup();
         db && await db.close();
         proc && proc.kill('SIGKILL');
     } catch (err) {
