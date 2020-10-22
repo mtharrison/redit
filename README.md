@@ -1,6 +1,6 @@
 # redit
 
-No-faff editing of rethinkdb documents in your $EDITOR of choice
+No-faff live editing of rethinkdb documents in your $EDITOR of choice
 
 __Vim__
 ```
